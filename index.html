@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f0f14">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Read & Learn Pro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --primary: #6c5ce7; --primary-light: #a29bfe;
+            --bg-dark: #0f0f14; --bg-card: #1a1a24; --bg-card-hover: #242432;
+            --text-primary: #ffffff; --text-secondary: #a0a0b0;
+            --success: #00e676; --danger: #ff5252; --warning: #ffb300;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        html, body {
+            -webkit-text-size-adjust: 100%;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100dvh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        .app-container {
+            max-width: 600px; margin: 0 auto; height: 100dvh;
+            display: flex; flex-direction: column; position: relative;
+        }
+
+        /* Üst Bar */
+        .header {
+            padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 16px;
+            background: var(--bg-card);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0; z-index: 10; gap: 8px;
+        }
+        .header h1 { font-size: 18px; font-weight: 700; color: var(--primary-light); }
+        .header-actions { display: flex; gap: 8px; }
+        .header-btn {
+            background: rgba(255,255,255,0.1); border: none; color: white;
+            padding: 8px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
+            font-family: inherit; white-space: nowrap;
+        }
+        .header-btn:active { transform: scale(0.96); }
+
+        /* Okuma Alanı */
+        .reader-area {
+            flex: 1; overflow-y: auto;
+            padding: 24px 20px 140px;
+            line-height: 1.8; font-size: 18px;
+            font-family: 'Georgia', 'Times New Roman', serif;
+            color: #e0e0e0; scroll-behavior: smooth;
+            position: relative;
+        }
+        .reader-area .loading {
+            text-align: center; color: var(--text-secondary);
+            padding: 60px 20px; font-family: inherit;
+        }
+        .reader-area .error {
+            color: var(--danger); padding: 20px;
+            background: rgba(255,82,82,0.1); border-radius: 12px;
+        }
+
+        /* Tıklanabilir Kelimeler */
+        .clickable-word {
+            cursor: pointer; border-radius: 4px; padding: 2px 1px;
+            transition: background 0.15s ease, color 0.15s ease;
+            border-bottom: 1px solid transparent;
+        }
+        .clickable-word:hover { background: rgba(108, 92, 231, 0.2); color: var(--primary-light); }
+        .clickable-word:active { background: var(--primary); color: white; }
+        .clickable-word.saved { border-bottom: 2px solid var(--success); }
+        .clickable-word.saved:hover { color: var(--success); }
+
+        /* Alt Çeviri Paneli */
+        .translation-panel {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: var(--bg-card);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px 24px 0 0;
+            padding: 16px 20px calc(20px + var(--safe-bottom));
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100; box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+            max-height: 60dvh; overflow-y: auto;
+        }
+        .translation-panel.active { transform: translateY(0); }
+        .panel-drag {
+            width: 40px; height: 4px; background: rgba(255,255,255,0.2);
+            border-radius: 2px; margin: 0 auto 12px;
+        }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
+        .panel-word {
+            font-size: 24px; font-weight: 700; color: var(--primary-light);
+            word-break: break-word;
+        }
+        .panel-close {
+            background: none; border: none; color: var(--text-secondary);
+            font-size: 24px; cursor: pointer; padding: 4px 8px; flex-shrink: 0;
+            font-family: inherit; line-height: 1;
+        }
+
+        .translation-result {
+            font-size: 18px; color: var(--text-primary); margin-bottom: 12px;
+            min-height: 24px; line-height: 1.5;
+        }
+        .translation-loading { color: var(--text-secondary); font-style: italic; }
+        .translation-error { color: var(--warning); font-style: italic; font-size: 15px; }
+
+        /* Cümle bağlamı (opsiyonel açılır) */
+        .context-box {
+            background: rgba(255,255,255,0.03);
+            border-left: 3px solid var(--primary);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            display: none;
+        }
+        .context-box.show { display: block; }
+        .context-label {
+            font-size: 11px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+        }
+        .context-sentence {
+            font-size: 14px; color: var(--text-secondary);
+            font-style: italic; margin-bottom: 8px; line-height: 1.5;
+        }
+        .context-translation { font-size: 15px; color: var(--text-primary); line-height: 1.5; }
+        .context-toggle {
+            background: none; border: none; color: var(--primary-light);
+            font-size: 13px; cursor: pointer; padding: 4px 0;
+            font-family: inherit; margin-bottom: 12px;
+        }
+        .context-toggle:active { opacity: 0.7; }
+
+        .panel-actions { display: flex; gap: 10px; }
+        .action-btn {
+            flex: 1; padding: 14px; border-radius: 12px; border: none;
+            font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: transform 0.15s;
+        }
+        .action-btn:active { transform: scale(0.97); }
+        .btn-save { background: var(--primary); color: white; }
+        .btn-save.saved { background: var(--success); color: #000; }
+        .btn-speak { background: rgba(255,255,255,0.1); color: white; }
+
+        /* Kelime Defteri Modal */
+        .vocab-modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); z-index: 200;
+            display: none; align-items: flex-end; justify-content: center;
+        }
+        .vocab-modal.show { display: flex; }
+        .vocab-content {
+            background: var(--bg-card); width: 100%; max-width: 600px;
+            height: 85dvh; border-radius: 24px 24px 0 0;
+            display: flex; flex-direction: column;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .vocab-header {
+            padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .vocab-header h2 { font-size: 18px; }
+        .vocab-stats {
+            padding: 12px 20px; font-size: 13px; color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .vocab-list { flex: 1; overflow-y: auto; padding: 16px; }
+        .vocab-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 16px; background: rgba(255,255,255,0.03);
+            border-radius: 12px; margin-bottom: 10px; gap: 12px;
+        }
+        .vocab-item-content { flex: 1; min-width: 0; }
+        .vocab-en { font-weight: 600; font-size: 16px; word-break: break-word; }
+        .vocab-tr { color: var(--text-secondary); font-size: 14px; margin-top: 4px; word-break: break-word; }
+        .vocab-date { color: var(--text-secondary); font-size: 11px; margin-top: 4px; opacity: 0.7; }
+        .vocab-delete {
+            background: rgba(255, 82, 82, 0.2); color: var(--danger); border: none;
+            width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; font-size: 16px;
+        }
+        .vocab-empty {
+            text-align: center; color: var(--text-secondary);
+            padding: 60px 20px; line-height: 1.7;
+        }
+
+        /* Quiz Modu */
+        .quiz-container {
+            padding: 24px; display: flex; flex-direction: column;
+            flex: 1; align-items: center; justify-content: center;
+            text-align: center; gap: 24px;
+        }
+        .quiz-word { font-size: 32px; font-weight: 700; color: var(--primary-light); font-family: Georgia, serif; }
+        .quiz-answer {
+            font-size: 18px; color: var(--text-primary);
+            min-height: 60px; padding: 16px; background: rgba(255,255,255,0.03);
+            border-radius: 12px; width: 100%; display: flex;
+            align-items: center; justify-content: center;
+            transition: opacity 0.2s;
+        }
+        .quiz-answer.hidden { opacity: 0; }
+        .quiz-progress { color: var(--text-secondary); font-size: 14px; }
+        .quiz-actions { display: flex; gap: 12px; width: 100%; }
+        .quiz-btn {
+            flex: 1; padding: 14px; border-radius: 12px; border: none;
+            font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+        }
+        .quiz-reveal { background: rgba(255,255,255,0.1); color: white; }
+        .quiz-next { background: var(--primary); color: white; }
+        .quiz-done { text-align: center; padding: 40px 20px; }
+        .quiz-done h3 { font-size: 22px; margin-bottom: 12px; color: var(--success); }
+        .quiz-done p { color: var(--text-secondary); line-height: 1.6; }
+
+        .toast {
+            position: fixed; top: 20px; left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: var(--success); color: #000; padding: 12px 24px;
+            border-radius: 50px; font-weight: 600; font-size: 14px;
+            z-index: 300; transition: transform 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 90vw; text-align: center;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.warn { background: var(--warning); }
+        .toast.error { background: var(--danger); color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="header">
+            <h1>📖 Read & Learn</h1>
+            <div class="header-actions">
+                <button class="header-btn" onclick="openQuiz()">🎯 Quiz</button>
+                <button class="header-btn" onclick="toggleVocab()">📚 Defter</button>
+            </div>
+        </div>
+
+        <div class="reader-area" id="readerArea">
+            <div class="loading">Kitap yükleniyor...</div>
+        </div>
+
+        <!-- Alt Çeviri Paneli -->
+        <div class="translation-panel" id="translationPanel">
+            <div class="panel-drag"></div>
+            <div class="panel-header">
+                <span class="panel-word" id="panelWord">Word</span>
+                <button class="panel-close" onclick="closePanel()" aria-label="Kapat">✕</button>
+            </div>
+            <div class="translation-result" id="translationResult">
+                <span class="translation-loading">Çevriliyor...</span>
+            </div>
+            <button class="context-toggle" id="contextToggle" onclick="toggleContext()" style="display:none;">
+                💬 Cümle bağlamında göster
+            </button>
+            <div class="context-box" id="contextBox">
+                <div class="context-label">Cümle</div>
+                <div class="context-sentence" id="contextSentence"></div>
+                <div class="context-label" style="margin-top:8px;">Çeviri</div>
+                <div class="context-translation" id="contextTranslation">
+                    <span class="translation-loading">Çevriliyor...</span>
+                </div>
+            </div>
+            <div class="panel-actions">
+                <button class="action-btn btn-speak" onclick="speakWord()">🔊 Dinle</button>
+                <button class="action-btn btn-save" id="saveBtn" onclick="saveWord()">💾 Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kelime Defteri Modal -->
+    <div class="vocab-modal" id="vocabModal" onclick="if(event.target === this) toggleVocab()">
+        <div class="vocab-content">
+            <div class="vocab-header">
+                <h2>Kelime Defterim</h2>
+                <button class="header-btn" onclick="toggleVocab()">Kapat</button>
+            </div>
+            <div class="vocab-stats" id="vocabStats"></div>
+            <div class="vocab-list" id="vocabList"></div>
+        </div>
+    </div>
+
+    <!-- Quiz Modal -->
+    <div class="vocab-modal" id="quizModal" onclick="if(event.target === this) closeQuiz()">
+        <div class="vocab-content">
+            <div class="vocab-header">
+                <h2>🎯 Kelime Quiz'i</h2>
+                <button class="header-btn" onclick="closeQuiz()">Kapat</button>
+            </div>
+            <div id="quizBody" style="flex:1; display:flex; flex-direction:column;"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">Kelime kaydedildi!</div>
+
+<script>
+// ============================================================
+// VERİ YÖNETİMİ
+// ============================================================
+const store = {
+    get(key, def) {
+        try {
+            const v = localStorage.getItem('readLearn_' + key);
+            return v ? JSON.parse(v) : def;
+        } catch { return def; }
+    },
+    set(key, val) {
+        try { localStorage.setItem('readLearn_' + key, JSON.stringify(val)); } catch {}
+    }
+};
+
+let vocabulary = store.get('vocabulary', []);
+let translationCache = store.get('translationCache', {});
+let contextCache = store.get('contextCache', {});
+
+// ============================================================
+// YARDIMCILAR
+// ============================================================
+function haptic(ms = 15) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch {} }
+}
+
+let toastTimer = null;
+function showToast(msg, type = '') {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatDate(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        const now = new Date();
+        const diffMs = now - d;
+        const diffMin = Math.floor(diffMs / 60000);
+        const diffHour = Math.floor(diffMs / 3600000);
+        const diffDay = Math.floor(diffMs / 86400000);
+        if (diffMin < 1) return 'az önce';
+        if (diffMin < 60) return `${diffMin} dk önce`;
+        if (diffHour < 24) return `${diffHour} sa önce`;
+        if (diffDay < 7) return `${diffDay} gün önce`;
+        return d.toLocaleDateString('tr-TR');
+    } catch { return ''; }
+}
+
+// ============================================================
+// KİTAP YÜKLEME + AKILLI TEMİZLEME
+// ============================================================
+// bookText fallback (book.txt yoksa gösterilir)
+const FALLBACK_TEXT = `
+Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, "and what is the use of a book," thought Alice "without pictures or conversations?"
+
+So she was considering in her own mind (as well as she could, for the hot day made her feel very sleepy and stupid), whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her.
+
+There was nothing so very remarkable in that; nor did Alice think it so very much out of the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be late!" (when she thought it over afterwards, it occurred to her that she ought to have wondered at this, but at the time it all seemed quite natural); but when the Rabbit actually took a watch out of its waistcoat-pocket, and looked at it, and then hurried on, Alice started to her feet, for it flashed across her mind that she had never before seen a rabbit with either a waistcoat-pocket, or a watch to take out of it, and burning with curiosity, she ran across the field after it, and fortunately was just in time to see it pop down a large rabbit-hole under the hedge.
+`.trim();
+
+function cleanGutenbergText(raw) {
+    return raw
+        // 1. Satır sonlarını standartlaştır
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+
+        // 2. Gutenberg başlık/son uyarılarını sil
+        .replace(/\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG EBOOK.*?\*\*\*/is, '')
+        .replace(/\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG EBOOK.*$/is, '')
+        .replace(/Produced by[\s\S]*?(?=\n\n)/i, '')
+        .replace(/Updated editions will replace the previous one[\s\S]*$/i, '')
+
+        // 3. Birden fazla boş satırı tek boş satıra indir
+        .replace(/\n{3,}/g, '\n\n')
+
+        // 4. KRİTİK: Tek satır sonlarını boşluğa çevir (paragrafları koru)
+        .replace(/([^\n])\n([^\n])/g, '$1 $2')
+
+        // 5. Fazla boşlukları temizle
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/[ \t]+\n/g, '\n')
+
+        .trim();
+}
+
+async function loadBook() {
+    const reader = document.getElementById('readerArea');
+    try {
+        const response = await fetch('book.txt', { cache: 'no-cache' });
+        if (!response.ok) throw new Error('fetch failed: ' + response.status);
+        const raw = await response.text();
+        const cleaned = cleanGutenbergText(raw);
+        if (cleaned.length < 50) throw new Error('metin çok kısa');
+        renderBook(cleaned);
+    } catch (err) {
+        console.warn('book.txt yüklenemedi, fallback kullanılıyor:', err);
+        renderBook(cleanGutenbergText(FALLBACK_TEXT));
+        showToast('book.txt bulunamadı, örnek metin gösteriliyor', 'warn');
+    }
+}
+
+// ============================================================
+// METİN İŞLEME (Unicode uyumlu)
+// ============================================================
+// \p{L} tüm dillerdeki harfleri yakalar. ' ve ’ kesme işaretleri desteklenir.
+const WORD_REGEX = /(\p{L}+(?:['’]\p{L}+)*)/gu;
+
+function buildWordRegex() {
+    // Modern tarayıcılarda \p{L} desteklenir. Fallback: eski Latin aralığı.
+    try {
+        new RegExp('\\p{L}', 'u');
+        return WORD_REGEX;
+    } catch {
+        return /([a-zA-ZÀ-ÖØ-öø-ÿĀ-ſ]+(?:['’][a-zA-ZÀ-ÖØ-öø-ÿĀ-ſ]+)*)/g;
+    }
+}
+
+let savedLookup = new Set();
+function rebuildSavedLookup() {
+    savedLookup = new Set(vocabulary.map(v => v.en.toLowerCase()));
+}
+
+function renderBook(text) {
+    const reader = document.getElementById('readerArea');
+    if (!text) {
+        reader.innerHTML = '<div class="error">Metin boş.</div>';
+        return;
+    }
+
+    rebuildSavedLookup();
+    const regex = buildWordRegex();
+
+    // Paragrafları bölerek işle → \n\n ayracı korunur
+    const paragraphs = text.split(/\n{2,}/);
+    const htmlParagraphs = paragraphs.map(para => {
+        const safePara = escapeHtml(para);
+        const processed = safePara.replace(regex, (match) => {
+            const cleanWord = match.toLowerCase();
+            const savedClass = savedLookup.has(cleanWord) ? ' saved' : '';
+            // data-* yerine inline güvenli (escapeHtml zaten yapıldı)
+            return `<span class="clickable-word${savedClass}" data-word="${match}" data-clean="${cleanWord}">${match}</span>`;
+        });
+        // Tek satır sonlarını (kalanları) <br> yap
+        return `<p>${processed.replace(/\n/g, '<br>')}</p>`;
+    });
+
+    reader.innerHTML = htmlParagraphs.join('');
+    // Tek bir event delegation ile performanslı tıklama
+    if (!reader.dataset.bound) {
+        reader.addEventListener('click', handleWordClick);
+        reader.dataset.bound = '1';
+    }
+}
+
+// ============================================================
+// KELİME ETKİLEŞİMİ
+// ============================================================
+let currentWord = '';
+let currentCleanWord = '';
+let currentSentence = '';
+let contextVisible = false;
+
+// Request yarışı koruması
+let translationRequestId = 0;
+let contextRequestId = 0;
+
+function handleWordClick(e) {
+    const span = e.target.closest('.clickable-word');
+    if (!span) return;
+
+    haptic(10);
+    currentWord = span.dataset.word;
+    currentCleanWord = span.dataset.clean;
+    contextVisible = false;
+    currentSentence = extractSentence(span);
+
+    document.getElementById('panelWord').textContent = currentWord;
+    document.getElementById('translationPanel').classList.add('active');
+    document.getElementById('contextBox').classList.remove('show');
+
+    const toggle = document.getElementById('contextToggle');
+    if (currentSentence && currentSentence.length > 0) {
+        toggle.style.display = 'inline-block';
+        toggle.textContent = '💬 Cümle bağlamında göster';
+    } else {
+        toggle.style.display = 'none';
+    }
+
+    updateSaveButtonState();
+    fetchTranslation(currentCleanWord);
+}
+
+function extractSentence(span) {
+    try {
+        const para = span.closest('p') || span.parentElement;
+        if (!para) return '';
+        const text = para.textContent || '';
+        const words = text.split(/(?<=[.!?])\s+/);
+        // span'in hangi cümlede olduğunu bul
+        const target = span.textContent;
+        for (const sentence of words) {
+            if (sentence.includes(target)) return sentence.trim();
+        }
+        return text.slice(0, 200).trim();
+    } catch { return ''; }
+}
+
+function closePanel() {
+    document.getElementById('translationPanel').classList.remove('active');
+    document.getElementById('contextBox').classList.remove('show');
+    currentWord = '';
+    currentCleanWord = '';
+    currentSentence = '';
+    contextVisible = false;
+}
+
+function toggleContext() {
+    if (!currentSentence) return;
+    const box = document.getElementById('contextBox');
+    contextVisible = !contextVisible;
+    box.classList.toggle('show', contextVisible);
+    if (contextVisible) {
+        document.getElementById('contextSentence').textContent = currentSentence;
+        fetchContextTranslation(currentSentence);
+    }
+}
+
+// ============================================================
+// ÇEVİRİ API + HATA FİLTRESİ
+// ============================================================
+const API_ERROR_PATTERNS = /MYMEMORY WARNING|QUERY LENGTH LIMIT|INVALID|NO QUERY SPECIFIED|PLEASE SELECT|AUTO-DETECT|TAMAMEN TÜKENDİ/i;
+
+function isApiError(text, original) {
+    if (!text) return true;
+    if (API_ERROR_PATTERNS.test(text)) return true;
+    if (text.trim().toLowerCase() === original.trim().toLowerCase()) return true;
+    return false;
+}
+
+async function callMyMemory(query, langpair = 'en|tr') {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=${langpair}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (!data || !data.responseData) throw new Error('geçersiz yanıt');
+    return data.responseData.translatedText || '';
+}
+
+async function fetchTranslation(word) {
+    const myId = ++translationRequestId;
+    const resultEl = document.getElementById('translationResult');
+
+    // Önbellek (sadece başarılı çeviriler)
+    if (translationCache[word]) {
+        resultEl.textContent = translationCache[word];
+        return;
+    }
+
+    resultEl.innerHTML = '<span class="translation-loading">Çevriliyor...</span>';
+
+    try {
+        const translation = await callMyMemory(word);
+        if (myId !== translationRequestId) return; // eski cevap, yoksay
+
+        if (isApiError(translation, word)) {
+            resultEl.innerHTML = '<span class="translation-error">Çeviri bulunamadı (API limiti olabilir).</span>';
+            return;
+        }
+
+        resultEl.textContent = translation;
+        translationCache[word] = translation;
+        store.set('translationCache', translationCache);
+    } catch (err) {
+        if (myId !== translationRequestId) return;
+        console.error('Çeviri hatası:', err);
+        resultEl.innerHTML = '<span class="translation-error">Bağlantı hatası. Tekrar deneyin.</span>';
+    }
+}
+
+async function fetchContextTranslation(sentence) {
+    const myId = ++contextRequestId;
+    const el = document.getElementById('contextTranslation');
+
+    // Cache
+    const key = 'ctx_' + sentence;
+    if (contextCache[key]) {
+        el.textContent = contextCache[key];
+        return;
+    }
+
+    el.innerHTML = '<span class="translation-loading">Çevriliyor...</span>';
+    try {
+        const translation = await callMyMemory(sentence);
+        if (myId !== contextRequestId) return;
+        if (isApiError(translation, sentence)) {
+            el.innerHTML = '<span class="translation-error">Cümle çevirisi alınamadı.</span>';
+            return;
+        }
+        el.textContent = translation;
+        contextCache[key] = translation;
+        // Cache boyutunu sınırla (aşırı büyümesin)
+        const keys = Object.keys(contextCache);
+        if (keys.length > 300) {
+            keys.slice(0, 100).forEach(k => delete contextCache[k]);
+        }
+        store.set('contextCache', contextCache);
+    } catch (err) {
+        if (myId !== contextRequestId) return;
+        el.innerHTML = '<span class="translation-error">Bağlantı hatası.</span>';
+    }
+}
+
+// ============================================================
+// SESLENDİRME
+// ============================================================
+function speakWord() {
+    if (!currentWord) return;
+    haptic(10);
+    if (!('speechSynthesis' in window)) {
+        showToast('Tarayıcı ses sentezini desteklemiyor', 'warn');
+        return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(currentWord);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.8;
+    window.speechSynthesis.speak(utterance);
+}
+
+// ============================================================
+// KELİME DEFTERİ
+// ============================================================
+function updateSaveButtonState() {
+    const btn = document.getElementById('saveBtn');
+    const isSaved = vocabulary.some(v => v.en.toLowerCase() === currentCleanWord);
+    if (isSaved) {
+        btn.innerHTML = '✓ Kayıtlı';
+        btn.classList.add('saved');
+    } else {
+        btn.innerHTML = '💾 Kaydet';
+        btn.classList.remove('saved');
+    }
+}
+
+function markWordAsSaved(cleanWord) {
+    document.querySelectorAll(`.clickable-word[data-clean="${CSS.escape(cleanWord)}"]`)
+        .forEach(el => el.classList.add('saved'));
+}
+
+function markWordAsUnsaved(cleanWord) {
+    document.querySelectorAll(`.clickable-word[data-clean="${CSS.escape(cleanWord)}"]`)
+        .forEach(el => el.classList.remove('saved'));
+}
+
+function saveWord() {
+    if (!currentWord || !currentCleanWord) return;
+
+    const isSaved = vocabulary.some(v => v.en.toLowerCase() === currentCleanWord);
+    if (isSaved) {
+        showToast('Bu kelime zaten kayıtlı!', 'warn');
+        return;
+    }
+
+    const resultEl = document.getElementById('translationResult');
+    const translation = resultEl.classList.contains('translation-error') || !resultEl.textContent
+        ? '—'
+        : resultEl.textContent.trim();
+
+    vocabulary.unshift({
+        en: currentWord,
+        clean: currentCleanWord,
+        tr: translation,
+        date: new Date().toISOString()
+    });
+    store.set('vocabulary', vocabulary);
+    rebuildSavedLookup();
+
+    // ✅ Sadece ilgili span'ları güncelle (renderBook değil!)
+    markWordAsSaved(currentCleanWord);
+    updateSaveButtonState();
+
+    showToast('Kelime defterine eklendi!');
+    haptic(30);
+}
+
+function deleteWord(cleanWord) {
+    haptic(20);
+    const idx = vocabulary.findIndex(v => (v.clean || v.en.toLowerCase()) === cleanWord);
+    if (idx === -1) return;
+    vocabulary.splice(idx, 1);
+    store.set('vocabulary', vocabulary);
+    rebuildSavedLookup();
+    renderVocabList();
+    markWordAsUnsaved(cleanWord);
+    if (currentCleanWord === cleanWord) updateSaveButtonState();
+}
+
+function renderVocabList() {
+    const list = document.getElementById('vocabList');
+    const stats = document.getElementById('vocabStats');
+
+    stats.innerHTML = `<span>Toplam: <strong>${vocabulary.length}</strong> kelime</span>` +
+        (vocabulary.length >= 5
+            ? `<button class="header-btn" style="padding:6px 12px;font-size:12px;" onclick="openQuiz()">🎯 Quiz'e Başla</button>`
+            : '');
+
+    if (vocabulary.length === 0) {
+        list.innerHTML = '<div class="vocab-empty">Henüz kelime kaydedilmemiş.<br>Kitaptaki kelimelere tıklayarak başlayın!</div>';
+        return;
+    }
+
+    list.innerHTML = vocabulary.map((item) => {
+        const clean = item.clean || item.en.toLowerCase();
+        return `
+            <div class="vocab-item">
+                <div class="vocab-item-content">
+                    <div class="vocab-en">${escapeHtml(item.en)}</div>
+                    <div class="vocab-tr">${escapeHtml(item.tr || '—')}</div>
+                    <div class="vocab-date">${formatDate(item.date)}</div>
+                </div>
+                <button class="vocab-delete" data-clean="${escapeHtml(clean)}" aria-label="Sil">🗑️</button>
+            </div>
+        `;
+    }).join('');
+
+    // Event delegation (inline onclick yerine — XSS güvenli)
+    list.onclick = (e) => {
+        const btn = e.target.closest('.vocab-delete');
+        if (btn) deleteWord(btn.dataset.clean);
+    };
+}
+
+function toggleVocab() {
+    haptic(15);
+    const modal = document.getElementById('vocabModal');
+    modal.classList.toggle('show');
+    if (modal.classList.contains('show')) renderVocabList();
+}
+
+// ============================================================
+// QUIZ MODU
+// ============================================================
+let quizState = null;
+
+function openQuiz() {
+    if (vocabulary.length < 5) {
+        showToast('Quiz için en az 5 kelime kaydetmelisiniz', 'warn');
+        return;
+    }
+    haptic(15);
+    // Karıştırılmış kopya
+    const shuffled = [...vocabulary].sort(() => Math.random() - 0.5).slice(0, 20);
+    quizState = { list: shuffled, index: 0, revealed: false, correct: 0 };
+    document.getElementById('quizModal').classList.add('show');
+    renderQuiz();
+}
+
+function closeQuiz() {
+    document.getElementById('quizModal').classList.remove('show');
+    quizState = null;
+}
+
+function renderQuiz() {
+    const body = document.getElementById('quizBody');
+    if (!quizState) return;
+
+    if (quizState.index >= quizState.list.length) {
+        body.innerHTML = `
+            <div class="quiz-done">
+                <h3>🎉 Tebrikler!</h3>
+                <p><strong>${quizState.list.length}</strong> kelimeyi tekrar ettiniz.</p>
+                <button class="header-btn" style="margin-top:20px;padding:12px 24px;" onclick="closeQuiz()">Kapat</button>
+            </div>
+        `;
+        return;
+    }
+
+    const item = quizState.list[quizState.index];
+    body.innerHTML = `
+        <div class="quiz-container">
+            <div class="quiz-progress">${quizState.index + 1} / ${quizState.list.length}</div>
+            <div class="quiz-word">${escapeHtml(item.en)}</div>
+            <div class="quiz-answer${quizState.revealed ? '' : ' hidden'}" id="quizAnswer">
+                ${quizState.revealed ? escapeHtml(item.tr || '—') : '…'}
+            </div>
+            <div class="quiz-actions">
+                ${quizState.revealed
+                    ? `<button class="quiz-btn quiz-next" onclick="quizNext()">Sonraki →</button>`
+                    : `<button class="quiz-btn quiz-reveal" onclick="quizReveal()">Cevabı Göster</button>`}
+            </div>
+        </div>
+    `;
+}
+
+function quizReveal() {
+    if (!quizState) return;
+    quizState.revealed = true;
+    renderQuiz();
+}
+
+function quizNext() {
+    if (!quizState) return;
+    quizState.index++;
+    quizState.revealed = false;
+    renderQuiz();
+}
+
+// ============================================================
+// BAŞLATMA
+// ============================================================
+rebuildSavedLookup();
+loadBook();
+</script>
+</body>
+</html>
