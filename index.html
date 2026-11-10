@@ -29,22 +29,31 @@
             display: flex; flex-direction: column; position: relative;
         }
 
-        /* Üst Bar */
+        /* Üst Bar ve İlerleme Çubuğu */
         .header {
-            padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 16px;
+            padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
             background: var(--bg-card);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             display: flex; justify-content: space-between; align-items: center;
-            flex-shrink: 0; z-index: 10; gap: 8px;
+            flex-shrink: 0; z-index: 10; gap: 8px; position: relative;
         }
-        .header h1 { font-size: 18px; font-weight: 700; color: var(--primary-light); }
-        .header-actions { display: flex; gap: 8px; }
+        .header-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+        .header h1 { font-size: 17px; font-weight: 700; color: var(--primary-light); white-space: nowrap; }
+        .progress-text { font-size: 12px; color: var(--text-secondary); font-weight: 600; font-variant-numeric: tabular-nums; }
+        .header-actions { display: flex; gap: 6px; }
         .header-btn {
             background: rgba(255,255,255,0.1); border: none; color: white;
-            padding: 8px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
-            font-family: inherit; white-space: nowrap;
+            padding: 7px 11px; border-radius: 20px; font-size: 12px; cursor: pointer;
+            font-family: inherit; white-space: nowrap; transition: background 0.15s;
         }
         .header-btn:active { transform: scale(0.96); }
+        .header-btn.active { background: var(--primary); color: white; }
+
+        .reading-progress-bar {
+            position: absolute; bottom: 0; left: 0; height: 2px;
+            background: var(--primary-light); width: 0%;
+            transition: width 0.2s ease;
+        }
 
         /* Okuma Alanı */
         .reader-area {
@@ -52,8 +61,13 @@
             padding: 24px 20px 140px;
             line-height: 1.8; font-size: 18px;
             font-family: 'Georgia', 'Times New Roman', serif;
-            color: #e0e0e0; scroll-behavior: smooth;
+            color: #e0e0e0;
             position: relative;
+        }
+        .reader-area p {
+            margin-bottom: 1.2em;
+            content-visibility: auto;
+            contain-intrinsic-size: auto 100px;
         }
         .reader-area .loading {
             text-align: center; color: var(--text-secondary);
@@ -67,13 +81,44 @@
         /* Tıklanabilir Kelimeler */
         .clickable-word {
             cursor: pointer; border-radius: 4px; padding: 2px 1px;
-            transition: background 0.15s ease, color 0.15s ease;
+            transition: background 0.15s ease, color 0.15s ease, opacity 0.2s ease;
             border-bottom: 1px solid transparent;
         }
         .clickable-word:hover { background: rgba(108, 92, 231, 0.2); color: var(--primary-light); }
         .clickable-word:active { background: var(--primary); color: white; }
         .clickable-word.saved { border-bottom: 2px solid var(--success); }
         .clickable-word.saved:hover { color: var(--success); }
+
+        /* Zor kelime işareti */
+        .clickable-word.difficult {
+            border-bottom: 2px solid var(--danger);
+            background: rgba(255, 82, 82, 0.08);
+        }
+
+        /* Odak modu */
+        body.focus-mode .clickable-word:not(.saved):not(.difficult) {
+            opacity: 0.25;
+            filter: blur(0.3px);
+            pointer-events: auto;
+        }
+        body.focus-mode .clickable-word.saved {
+            background: rgba(0, 230, 118, 0.1);
+        }
+
+        /* Paragraf istatistik rozeti */
+        .para-badge {
+            display: inline-block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: rgba(255,255,255,0.05);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-right: 8px;
+            font-family: -apple-system, sans-serif;
+            vertical-align: middle;
+            opacity: 0.7;
+            user-select: none;
+        }
 
         /* Alt Çeviri Paneli */
         .translation-panel {
@@ -110,7 +155,7 @@
         .translation-loading { color: var(--text-secondary); font-style: italic; }
         .translation-error { color: var(--warning); font-style: italic; font-size: 15px; }
 
-        /* Cümle bağlamı (opsiyonel açılır) */
+        /* Cümle bağlamı */
         .context-box {
             background: rgba(255,255,255,0.03);
             border-left: 3px solid var(--primary);
@@ -171,7 +216,17 @@
             padding: 12px 20px; font-size: 13px; color: var(--text-secondary);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 8px;
         }
+        .vocab-backup-actions {
+            display: flex; gap: 6px; align-items: center;
+        }
+        .backup-btn {
+            background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-primary); padding: 5px 10px; border-radius: 14px;
+            font-size: 11px; cursor: pointer; font-family: inherit;
+        }
+        .backup-btn:active { transform: scale(0.96); }
         .vocab-list { flex: 1; overflow-y: auto; padding: 16px; }
         .vocab-item {
             display: flex; justify-content: space-between; align-items: center;
@@ -238,11 +293,16 @@
 
     <div class="app-container">
         <div class="header">
-            <h1>📖 Read & Learn</h1>
+            <div class="header-left">
+                <h1>📖 Read & Learn</h1>
+                <span class="progress-text" id="progressText" title="Okuma İlerlemesi">%0</span>
+            </div>
             <div class="header-actions">
-                <button class="header-btn" onclick="openQuiz()">🎯 Quiz</button>
+                <button class="header-btn" id="focusToggle" onclick="toggleFocusMode()" title="Odak Modu">🎯 Odak</button>
+                <button class="header-btn" onclick="openQuiz()">🧠 Quiz</button>
                 <button class="header-btn" onclick="toggleVocab()">📚 Defter</button>
             </div>
+            <div class="reading-progress-bar" id="readingProgressBar"></div>
         </div>
 
         <div class="reader-area" id="readerArea">
@@ -289,11 +349,14 @@
         </div>
     </div>
 
+    <!-- Gizli JSON Dosya Seçici -->
+    <input type="file" id="importInput" accept=".json,application/json" style="display:none" onchange="handleImportFile(event)">
+
     <!-- Quiz Modal -->
     <div class="vocab-modal" id="quizModal" onclick="if(event.target === this) closeQuiz()">
         <div class="vocab-content">
             <div class="vocab-header">
-                <h2>🎯 Kelime Quiz'i</h2>
+                <h2>🧠 Kelime Quiz'i</h2>
                 <button class="header-btn" onclick="closeQuiz()">Kapat</button>
             </div>
             <div id="quizBody" style="flex:1; display:flex; flex-direction:column;"></div>
@@ -321,6 +384,9 @@ const store = {
 let vocabulary = store.get('vocabulary', []);
 let translationCache = store.get('translationCache', {});
 let contextCache = store.get('contextCache', {});
+let focusMode = store.get('focusMode', false);
+let difficultWords = new Set(store.get('difficultWords', []));
+let currentBookKey = 'default';
 
 // ============================================================
 // YARDIMCILAR
@@ -364,10 +430,14 @@ function formatDate(iso) {
     } catch { return ''; }
 }
 
+// Kitap değiştiğinde konum kaydının karışmaması için hafif imza üretici
+function getBookSignature(text) {
+    return 'pos_' + text.length + '_' + text.slice(0, 40).replace(/\W+/g, '');
+}
+
 // ============================================================
 // KİTAP YÜKLEME + AKILLI TEMİZLEME
 // ============================================================
-// bookText fallback (book.txt yoksa gösterilir)
 const FALLBACK_TEXT = `
 Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it, "and what is the use of a book," thought Alice "without pictures or conversations?"
 
@@ -378,26 +448,16 @@ There was nothing so very remarkable in that; nor did Alice think it so very muc
 
 function cleanGutenbergText(raw) {
     return raw
-        // 1. Satır sonlarını standartlaştır
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
-
-        // 2. Gutenberg başlık/son uyarılarını sil
         .replace(/\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG EBOOK.*?\*\*\*/is, '')
         .replace(/\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG EBOOK.*$/is, '')
         .replace(/Produced by[\s\S]*?(?=\n\n)/i, '')
         .replace(/Updated editions will replace the previous one[\s\S]*$/i, '')
-
-        // 3. Birden fazla boş satırı tek boş satıra indir
         .replace(/\n{3,}/g, '\n\n')
-
-        // 4. KRİTİK: Tek satır sonlarını boşluğa çevir (paragrafları koru)
         .replace(/([^\n])\n([^\n])/g, '$1 $2')
-
-        // 5. Fazla boşlukları temizle
         .replace(/[ \t]{2,}/g, ' ')
         .replace(/[ \t]+\n/g, '\n')
-
         .trim();
 }
 
@@ -418,13 +478,11 @@ async function loadBook() {
 }
 
 // ============================================================
-// METİN İŞLEME (Unicode uyumlu)
+// METİN İŞLEME VE OKUMA KONUMU (SCROLL PERSISTENCE)
 // ============================================================
-// \p{L} tüm dillerdeki harfleri yakalar. ' ve ’ kesme işaretleri desteklenir.
 const WORD_REGEX = /(\p{L}+(?:['’]\p{L}+)*)/gu;
 
 function buildWordRegex() {
-    // Modern tarayıcılarda \p{L} desteklenir. Fallback: eski Latin aralığı.
     try {
         new RegExp('\\p{L}', 'u');
         return WORD_REGEX;
@@ -435,7 +493,7 @@ function buildWordRegex() {
 
 let savedLookup = new Set();
 function rebuildSavedLookup() {
-    savedLookup = new Set(vocabulary.map(v => v.en.toLowerCase()));
+    savedLookup = new Set(vocabulary.map(v => (v.clean || v.en.toLowerCase())));
 }
 
 function renderBook(text) {
@@ -445,29 +503,158 @@ function renderBook(text) {
         return;
     }
 
+    currentBookKey = getBookSignature(text);
     rebuildSavedLookup();
     const regex = buildWordRegex();
 
-    // Paragrafları bölerek işle → \n\n ayracı korunur
     const paragraphs = text.split(/\n{2,}/);
-    const htmlParagraphs = paragraphs.map(para => {
+    const htmlParagraphs = paragraphs.map((para, idx) => {
         const safePara = escapeHtml(para);
+        let paraSavedCount = 0;
+
         const processed = safePara.replace(regex, (match) => {
             const cleanWord = match.toLowerCase();
-            const savedClass = savedLookup.has(cleanWord) ? ' saved' : '';
-            // data-* yerine inline güvenli (escapeHtml zaten yapıldı)
-            return `<span class="clickable-word${savedClass}" data-word="${match}" data-clean="${cleanWord}">${match}</span>`;
+            const isSaved = savedLookup.has(cleanWord);
+            const isDifficult = difficultWords.has(cleanWord);
+            if (isSaved) paraSavedCount++;
+
+            let classes = 'clickable-word';
+            if (isSaved) classes += ' saved';
+            if (isDifficult) classes += ' difficult';
+
+            return `<span class="${classes}" data-word="${match}" data-clean="${cleanWord}">${match}</span>`;
         });
-        // Tek satır sonlarını (kalanları) <br> yap
-        return `<p>${processed.replace(/\n/g, '<br>')}</p>`;
+
+        const badge = paraSavedCount > 0
+            ? `<span class="para-badge">📌 ${paraSavedCount} kayıtlı</span>`
+            : '';
+
+        return `<p data-p-idx="${idx}">${badge}${processed.replace(/\n/g, '<br>')}</p>`;
     });
 
     reader.innerHTML = htmlParagraphs.join('');
-    // Tek bir event delegation ile performanslı tıklama
+
     if (!reader.dataset.bound) {
         reader.addEventListener('click', handleWordClick);
+        reader.addEventListener('scroll', handleReaderScroll, { passive: true });
         reader.dataset.bound = '1';
     }
+
+    document.body.classList.toggle('focus-mode', focusMode);
+    restoreScrollPosition();
+}
+
+let scrollSaveTimer = null;
+
+function handleReaderScroll() {
+    updateReadingProgressUI();
+    clearTimeout(scrollSaveTimer);
+    scrollSaveTimer = setTimeout(saveScrollPosition, 300);
+}
+
+function updateReadingProgressUI() {
+    const reader = document.getElementById('readerArea');
+    const maxScroll = reader.scrollHeight - reader.clientHeight;
+    const pct = maxScroll > 0 ? Math.min(100, Math.max(0, Math.round((reader.scrollTop / maxScroll) * 100))) : 100;
+    document.getElementById('progressText').textContent = `%${pct}`;
+    document.getElementById('readingProgressBar').style.width = `${pct}%`;
+}
+
+function saveScrollPosition() {
+    const reader = document.getElementById('readerArea');
+    const maxScroll = reader.scrollHeight - reader.clientHeight;
+    if (maxScroll <= 0) return;
+
+    const ratio = reader.scrollTop / maxScroll;
+
+    // Görünür alandaki ilk paragrafın indeksini bul
+    const readerRect = reader.getBoundingClientRect();
+    let visibleIdx = 0;
+    const paras = reader.querySelectorAll('p[data-p-idx]');
+    for (const p of paras) {
+        const rect = p.getBoundingClientRect();
+        if (rect.bottom > readerRect.top + 20) {
+            visibleIdx = parseInt(p.dataset.pIdx, 10) || 0;
+            break;
+        }
+    }
+
+    store.set(currentBookKey, { ratio, pIdx: visibleIdx });
+}
+
+function restoreScrollPosition() {
+    const reader = document.getElementById('readerArea');
+    const saved = store.get(currentBookKey, null);
+
+    if (!saved) {
+        updateReadingProgressUI();
+        return;
+    }
+
+    requestAnimationFrame(() => {
+        const targetPara = reader.querySelector(`p[data-p-idx="${saved.pIdx}"]`);
+        if (targetPara && saved.pIdx > 0) {
+            targetPara.scrollIntoView({ block: 'start' });
+        } else if (typeof saved.ratio === 'number') {
+            const maxScroll = reader.scrollHeight - reader.clientHeight;
+            reader.scrollTop = saved.ratio * maxScroll;
+        }
+        updateReadingProgressUI();
+        if (saved.pIdx > 1) {
+            showToast(`Kaldığınız yerden devam ediliyor (Paragraf ${saved.pIdx + 1})`);
+        }
+    });
+}
+
+// ============================================================
+// ODAK MODU VE SINIF GÜNCELLEMELERİ
+// ============================================================
+function toggleFocusMode() {
+    focusMode = !focusMode;
+    store.set('focusMode', focusMode);
+    document.body.classList.toggle('focus-mode', focusMode);
+
+    const btn = document.getElementById('focusToggle');
+    btn.classList.toggle('active', focusMode);
+    btn.textContent = focusMode ? '🎯 Odak Açık' : '🎯 Odak';
+
+    haptic(15);
+    showToast(focusMode ? 'Odak modu açık — sadece kayıtlı kelimeler vurgulu' : 'Odak modu kapalı');
+}
+
+function updateWordClasses(cleanWord) {
+    const isSaved = savedLookup.has(cleanWord);
+    const isDifficult = difficultWords.has(cleanWord);
+
+    document.querySelectorAll(`.clickable-word[data-clean="${CSS.escape(cleanWord)}"]`)
+        .forEach(el => {
+            el.classList.toggle('saved', isSaved);
+            el.classList.toggle('difficult', isDifficult);
+        });
+}
+
+function updateAllWordsInDOM() {
+    document.querySelectorAll('#readerArea .clickable-word').forEach(el => {
+        const clean = el.dataset.clean;
+        el.classList.toggle('saved', savedLookup.has(clean));
+        el.classList.toggle('difficult', difficultWords.has(clean));
+    });
+    updateParagraphBadges();
+}
+
+function updateParagraphBadges() {
+    document.querySelectorAll('#readerArea p').forEach(p => {
+        const oldBadge = p.querySelector('.para-badge');
+        if (oldBadge) oldBadge.remove();
+
+        const savedCount = p.querySelectorAll('.clickable-word.saved').length;
+        if (savedCount > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'para-badge';
+            badge.textContent = `📌 ${savedCount} kayıtlı`;
+            p.insertBefore(badge, p.firstChild);
+        }
+    });
 }
 
 // ============================================================
@@ -478,7 +665,6 @@ let currentCleanWord = '';
 let currentSentence = '';
 let contextVisible = false;
 
-// Request yarışı koruması
 let translationRequestId = 0;
 let contextRequestId = 0;
 
@@ -512,11 +698,15 @@ function extractSentence(span) {
     try {
         const para = span.closest('p') || span.parentElement;
         if (!para) return '';
-        const text = para.textContent || '';
-        const words = text.split(/(?<=[.!?])\s+/);
-        // span'in hangi cümlede olduğunu bul
+        
+        const clone = para.cloneNode(true);
+        const badge = clone.querySelector('.para-badge');
+        if (badge) badge.remove();
+
+        const text = clone.textContent || '';
+        const sentences = text.split(/(?<=[.!?])\s+/);
         const target = span.textContent;
-        for (const sentence of words) {
+        for (const sentence of sentences) {
             if (sentence.includes(target)) return sentence.trim();
         }
         return text.slice(0, 200).trim();
@@ -568,7 +758,6 @@ async function fetchTranslation(word) {
     const myId = ++translationRequestId;
     const resultEl = document.getElementById('translationResult');
 
-    // Önbellek (sadece başarılı çeviriler)
     if (translationCache[word]) {
         resultEl.textContent = translationCache[word];
         return;
@@ -578,7 +767,7 @@ async function fetchTranslation(word) {
 
     try {
         const translation = await callMyMemory(word);
-        if (myId !== translationRequestId) return; // eski cevap, yoksay
+        if (myId !== translationRequestId) return;
 
         if (isApiError(translation, word)) {
             resultEl.innerHTML = '<span class="translation-error">Çeviri bulunamadı (API limiti olabilir).</span>';
@@ -599,7 +788,6 @@ async function fetchContextTranslation(sentence) {
     const myId = ++contextRequestId;
     const el = document.getElementById('contextTranslation');
 
-    // Cache
     const key = 'ctx_' + sentence;
     if (contextCache[key]) {
         el.textContent = contextCache[key];
@@ -616,7 +804,6 @@ async function fetchContextTranslation(sentence) {
         }
         el.textContent = translation;
         contextCache[key] = translation;
-        // Cache boyutunu sınırla (aşırı büyümesin)
         const keys = Object.keys(contextCache);
         if (keys.length > 300) {
             keys.slice(0, 100).forEach(k => delete contextCache[k]);
@@ -646,11 +833,11 @@ function speakWord() {
 }
 
 // ============================================================
-// KELİME DEFTERİ
+// KELİME DEFTERİ + JSON YEDEKLEME (EXPORT / IMPORT)
 // ============================================================
 function updateSaveButtonState() {
     const btn = document.getElementById('saveBtn');
-    const isSaved = vocabulary.some(v => v.en.toLowerCase() === currentCleanWord);
+    const isSaved = vocabulary.some(v => (v.clean || v.en.toLowerCase()) === currentCleanWord);
     if (isSaved) {
         btn.innerHTML = '✓ Kayıtlı';
         btn.classList.add('saved');
@@ -660,20 +847,10 @@ function updateSaveButtonState() {
     }
 }
 
-function markWordAsSaved(cleanWord) {
-    document.querySelectorAll(`.clickable-word[data-clean="${CSS.escape(cleanWord)}"]`)
-        .forEach(el => el.classList.add('saved'));
-}
-
-function markWordAsUnsaved(cleanWord) {
-    document.querySelectorAll(`.clickable-word[data-clean="${CSS.escape(cleanWord)}"]`)
-        .forEach(el => el.classList.remove('saved'));
-}
-
 function saveWord() {
     if (!currentWord || !currentCleanWord) return;
 
-    const isSaved = vocabulary.some(v => v.en.toLowerCase() === currentCleanWord);
+    const isSaved = vocabulary.some(v => (v.clean || v.en.toLowerCase()) === currentCleanWord);
     if (isSaved) {
         showToast('Bu kelime zaten kayıtlı!', 'warn');
         return;
@@ -693,9 +870,9 @@ function saveWord() {
     store.set('vocabulary', vocabulary);
     rebuildSavedLookup();
 
-    // ✅ Sadece ilgili span'ları güncelle (renderBook değil!)
-    markWordAsSaved(currentCleanWord);
+    updateWordClasses(currentCleanWord);
     updateSaveButtonState();
+    updateParagraphBadges();
 
     showToast('Kelime defterine eklendi!');
     haptic(30);
@@ -707,32 +884,131 @@ function deleteWord(cleanWord) {
     if (idx === -1) return;
     vocabulary.splice(idx, 1);
     store.set('vocabulary', vocabulary);
+
+    if (difficultWords.has(cleanWord)) {
+        difficultWords.delete(cleanWord);
+        store.set('difficultWords', [...difficultWords]);
+    }
+
     rebuildSavedLookup();
     renderVocabList();
-    markWordAsUnsaved(cleanWord);
+    updateWordClasses(cleanWord);
+    updateParagraphBadges();
     if (currentCleanWord === cleanWord) updateSaveButtonState();
+}
+
+function exportVocabJSON() {
+    if (vocabulary.length === 0) {
+        showToast('Dışa aktarılacak kelime yok', 'warn');
+        return;
+    }
+    const payload = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        vocabulary,
+        difficultWords: [...difficultWords]
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `read-learn-kelimeler-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('Yedek dosyası indirildi');
+}
+
+function triggerImportJSON() {
+    document.getElementById('importInput').click();
+}
+
+function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            const incomingList = Array.isArray(data) ? data : (data.vocabulary || []);
+            if (!Array.isArray(incomingList)) throw new Error('Geçersiz format');
+
+            let addedCount = 0;
+            const existingSet = new Set(vocabulary.map(v => (v.clean || v.en.toLowerCase())));
+
+            incomingList.forEach(item => {
+                if (!item || typeof item.en !== 'string') return;
+                const clean = (item.clean || item.en).toLowerCase().trim();
+                if (!clean || existingSet.has(clean)) return;
+
+                vocabulary.push({
+                    en: item.en.trim(),
+                    clean: clean,
+                    tr: item.tr ? String(item.tr).trim() : '—',
+                    date: item.date || new Date().toISOString()
+                });
+                existingSet.add(clean);
+                addedCount++;
+            });
+
+            if (Array.isArray(data.difficultWords)) {
+                data.difficultWords.forEach(w => {
+                    if (typeof w === 'string' && existingSet.has(w.toLowerCase())) {
+                        difficultWords.add(w.toLowerCase());
+                    }
+                });
+                store.set('difficultWords', [...difficultWords]);
+            }
+
+            // Tarihe göre yeniden eskiye sırala
+            vocabulary.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+            store.set('vocabulary', vocabulary);
+            rebuildSavedLookup();
+            renderVocabList();
+            updateAllWordsInDOM();
+            if (currentCleanWord) updateSaveButtonState();
+
+            showToast(`${addedCount} yeni kelime içe aktarıldı!`);
+        } catch (err) {
+            console.error('JSON İçe aktarma hatası:', err);
+            showToast('Geçersiz JSON dosyası!', 'error');
+        } finally {
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
 }
 
 function renderVocabList() {
     const list = document.getElementById('vocabList');
     const stats = document.getElementById('vocabStats');
 
-    stats.innerHTML = `<span>Toplam: <strong>${vocabulary.length}</strong> kelime</span>` +
-        (vocabulary.length >= 5
-            ? `<button class="header-btn" style="padding:6px 12px;font-size:12px;" onclick="openQuiz()">🎯 Quiz'e Başla</button>`
-            : '');
+    stats.innerHTML = `
+        <span>Toplam: <strong>${vocabulary.length}</strong> kelime</span>
+        <div class="vocab-backup-actions">
+            <button class="backup-btn" onclick="exportVocabJSON()" title="JSON olarak indir">⬇️ Dışa Aktar</button>
+            <button class="backup-btn" onclick="triggerImportJSON()" title="JSON yedek yükle">⬆️ İçe Aktar</button>
+            ${vocabulary.length >= 5
+                ? `<button class="header-btn" style="padding:5px 10px;font-size:11px;" onclick="openQuiz()">🧠 Quiz</button>`
+                : ''}
+        </div>
+    `;
 
     if (vocabulary.length === 0) {
-        list.innerHTML = '<div class="vocab-empty">Henüz kelime kaydedilmemiş.<br>Kitaptaki kelimelere tıklayarak başlayın!</div>';
+        list.innerHTML = '<div class="vocab-empty">Henüz kelime kaydedilmemiş.<br>Kitaptaki kelimelere tıklayarak başlayın veya eski bir JSON yedeğini içe aktarın!</div>';
         return;
     }
 
     list.innerHTML = vocabulary.map((item) => {
         const clean = item.clean || item.en.toLowerCase();
+        const isDiff = difficultWords.has(clean);
         return `
             <div class="vocab-item">
                 <div class="vocab-item-content">
-                    <div class="vocab-en">${escapeHtml(item.en)}</div>
+                    <div class="vocab-en">${escapeHtml(item.en)} ${isDiff ? '<span title="Zor kelime" style="font-size:13px;">🔥</span>' : ''}</div>
                     <div class="vocab-tr">${escapeHtml(item.tr || '—')}</div>
                     <div class="vocab-date">${formatDate(item.date)}</div>
                 </div>
@@ -741,7 +1017,6 @@ function renderVocabList() {
         `;
     }).join('');
 
-    // Event delegation (inline onclick yerine — XSS güvenli)
     list.onclick = (e) => {
         const btn = e.target.closest('.vocab-delete');
         if (btn) deleteWord(btn.dataset.clean);
@@ -766,7 +1041,6 @@ function openQuiz() {
         return;
     }
     haptic(15);
-    // Karıştırılmış kopya
     const shuffled = [...vocabulary].sort(() => Math.random() - 0.5).slice(0, 20);
     quizState = { list: shuffled, index: 0, revealed: false, correct: 0 };
     document.getElementById('quizModal').classList.add('show');
@@ -786,7 +1060,7 @@ function renderQuiz() {
         body.innerHTML = `
             <div class="quiz-done">
                 <h3>🎉 Tebrikler!</h3>
-                <p><strong>${quizState.list.length}</strong> kelimeyi tekrar ettiniz.</p>
+                <p><strong>${quizState.list.length}</strong> kelimeyi tekrar ettiniz.<br>Doğru bilinen: <strong>${quizState.correct}</strong></p>
                 <button class="header-btn" style="margin-top:20px;padding:12px 24px;" onclick="closeQuiz()">Kapat</button>
             </div>
         `;
@@ -803,7 +1077,10 @@ function renderQuiz() {
             </div>
             <div class="quiz-actions">
                 ${quizState.revealed
-                    ? `<button class="quiz-btn quiz-next" onclick="quizNext()">Sonraki →</button>`
+                    ? `<div style="display:flex;gap:10px;width:100%;">
+                         <button class="quiz-btn" style="background:rgba(255,82,82,0.2);color:var(--danger);" onclick="quizNext(false)">😕 Bilemedim</button>
+                         <button class="quiz-btn quiz-next" onclick="quizNext(true)">😊 Biliyordum</button>
+                       </div>`
                     : `<button class="quiz-btn quiz-reveal" onclick="quizReveal()">Cevabı Göster</button>`}
             </div>
         </div>
@@ -816,17 +1093,35 @@ function quizReveal() {
     renderQuiz();
 }
 
-function quizNext() {
+function quizNext(wasCorrect) {
     if (!quizState) return;
+
+    const item = quizState.list[quizState.index];
+    const clean = item.clean || item.en.toLowerCase();
+
+    if (wasCorrect === false) {
+        difficultWords.add(clean);
+    } else if (wasCorrect === true) {
+        difficultWords.delete(clean);
+        quizState.correct++;
+    }
+
+    store.set('difficultWords', [...difficultWords]);
+
     quizState.index++;
     quizState.revealed = false;
     renderQuiz();
+
+    updateWordClasses(clean);
 }
 
 // ============================================================
 // BAŞLATMA
 // ============================================================
 rebuildSavedLookup();
+const focusBtn = document.getElementById('focusToggle');
+focusBtn.classList.toggle('active', focusMode);
+focusBtn.textContent = focusMode ? '🎯 Odak Açık' : '🎯 Odak';
 loadBook();
 </script>
 </body>
